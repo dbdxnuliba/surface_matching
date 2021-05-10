@@ -731,7 +731,7 @@ int computeNormalsPC3d(const Mat& PC, Mat& PCNormals, const int NumNeighbors, co
     //return -1;
     CV_Error(cv::Error::BadImageSize, "PC should have 3 or 6 elements in its columns");
   }
-  clock_t start = clock();
+  //clock_t start = clock();
   PCNormals.create(PC.rows, 6, CV_32F);
   Mat PCInput = PCNormals.colRange(0, 3);
   Mat Distances(PC.rows, NumNeighbors, CV_32F);
@@ -744,9 +744,9 @@ int computeNormalsPC3d(const Mat& PC, Mat& PCNormals, const int NumNeighbors, co
   queryPCFlann(flannIndex, PCInput, Indices, Distances, NumNeighbors);
   destroyFlann(flannIndex);
   flannIndex = 0;
-  clock_t stop = clock();
-  std::cout << "Normal estimation1 " << float(stop-start)/CLOCKS_PER_SEC << std::endl;
-  start = clock();
+  //clock_t stop = clock();
+  //std::cout << "Normal estimation1 " << float(stop-start)/CLOCKS_PER_SEC << std::endl;
+  //start = clock();
 #if defined _OPENMP
 #pragma omp parallel for
 #endif
@@ -772,8 +772,8 @@ int computeNormalsPC3d(const Mat& PC, Mat& PCNormals, const int NumNeighbors, co
       Mat(nr).reshape(1, 1).copyTo(PCNormals.row(i).colRange(3, 6));
     }
   }
-  stop = clock();
-  std::cout << "Normal estimation2 " << float(stop-start)/CLOCKS_PER_SEC << std::endl;
+  //stop = clock();
+  //std::cout << "Normal estimation2 " << float(stop-start)/CLOCKS_PER_SEC << std::endl;
   return 1;
 }
 
@@ -786,7 +786,7 @@ int computeNormalsPC3dTriangleMesh(const Mat &PC, Mat &PCNormals, const int NumN
       //return -1;
       CV_Error(cv::Error::BadImageSize, "PC should have 3 or 6 elements in its columns");
     }
-    clock_t start = clock();
+    //clock_t start = clock();
     PCNormals.create(PC.rows, 6, CV_32F);
     Mat PCInput = PCNormals.colRange(0, 3);
     Mat Distances(PC.rows, NumNeighbors, CV_32F);
@@ -799,9 +799,9 @@ int computeNormalsPC3dTriangleMesh(const Mat &PC, Mat &PCNormals, const int NumN
     queryPCFlann(flannIndex, PCInput, Indices, Distances, NumNeighbors);
     destroyFlann(flannIndex);
     flannIndex = 0;
-    clock_t stop = clock();
-    std::cout << "Normal estimation1 " << float(stop-start)/CLOCKS_PER_SEC << std::endl;
-    start = clock();
+    //clock_t stop = clock();
+    //std::cout << "Normal estimation1 " << float(stop-start)/CLOCKS_PER_SEC << std::endl;
+    //start = clock();
   #if defined _OPENMP
   #pragma omp parallel for
   #endif
@@ -822,8 +822,8 @@ int computeNormalsPC3dTriangleMesh(const Mat &PC, Mat &PCNormals, const int NumN
         //std::cout << "normal_ " << PCNormals.row(i).colRange(3,6) << std::endl;
       }
     }
-    stop = clock();
-    std::cout << "Normal estimation2 " << float(stop-start)/CLOCKS_PER_SEC << std::endl;
+    //stop = clock();
+    //std::cout << "Normal estimation2 " << float(stop-start)/CLOCKS_PER_SEC << std::endl;
     return 1;
 }
 

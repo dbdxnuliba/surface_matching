@@ -428,72 +428,7 @@ void PPF3DDetector::clusterPoses(std::vector<Pose3DPtr>& poseList, int numPoses,
 
   poseClusters.clear();
 }
-void PPF3DDetector::match_(const Mat &model,const Mat& pc, std::vector<Pose3DPtr>& results, const double relativeSceneSampleStep, const double relativeSceneDistance)
-{
-    CV_Assert(model.type() == CV_32F || model.type() == CV_32FC1);
 
-    // compute bbox
-    Vec2f xRange, yRange, zRange;
-    computeBboxStd(model, xRange, yRange, zRange);
-
-    // compute sampling step from diameter of bbox
-    float dx = xRange[1] - xRange[0];
-    float dy = yRange[1] - yRange[0];
-    float dz = zRange[1] - zRange[0];
-    float diameter = sqrt ( dx * dx + dy * dy + dz * dz );
-
-    float distanceStep = (float)(diameter * sampling_step_relative);
-
-    Mat sampled = samplePCByQuantization(model, xRange, yRange, zRange, (float)sampling_step_relative,0);
-
-    int size = sampled.rows*sampled.rows;
-
-    hashtable_int* hashTable = hashtableCreate(size, NULL);
-
-    int numPPF = sampled.rows*sampled.rows;
-    ppf = Mat(numPPF, PPF_LENGTH, CV_32FC1);
-
-    // TODO: Maybe I could sample 1/5th of them here. Check the performance later.
-    int numRefPoints = sampled.rows;
-
-    // pre-allocate the hash nodes
-    hash_nodes = (THash*)calloc(numRefPoints*numRefPoints, sizeof(THash));
-
-
-    angle_step = angle_step_radians;
-    distance_step = distanceStep;
-
-    num_ref_points = numRefPoints;
-    sampled_pc = sampled;
-    trained = true;
-    FILE * pFile;
-    std::cout << "Open File" << std::endl;
-    pFile = fopen ("hash.txt" , "r");
-    FileStorage fs("ppf.yml", FileStorage::READ);
-     fs["ppf"] >> ppf;
-     fs.release();
-    std::ifstream file_obj;
-
-    //std::cout << sizeof (ppf);
-    // Opening file in input mode
-    file_obj.open("hash_nodes.hashnode");
-    file_obj.read((char*)hash_nodes, sizeof(hash_nodes));
-    file_obj.close();
-
-    //std::cout << "ppf: " << std::endl;
-    //std::cout << ppf << std::endl;
-    hash_table = hashtableRead(pFile);
-    std::cout << "Read hash table" << std::endl;
-    //hashtablePrint(hash_table);
-    fclose(pFile);
-    try {
-        match(pc,results,relativeSceneSampleStep,relativeSceneDistance);
-    } catch (Exception e) {
-        std::cout << e.msg << std::endl;
-    }
-
-    std::cout << "Finish match" << std::endl;
-}
 void PPF3DDetector::match(const Mat& pc, std::vector<Pose3DPtr>& results, const double relativeSceneSampleStep, const double relativeSceneDistance)
 {
   if (!trained)
@@ -524,7 +459,15 @@ void PPF3DDetector::match(const Mat& pc, std::vector<Pose3DPtr>& results, const 
   float dz = zRange[1] - zRange[0];
   float diameter = sqrt ( dx * dx + dy * dy + dz * dz );
   float distanceSampleStep = diameter * RelativeSceneDistance;*/
-  Mat sampled = samplePCByQuantization(pc, xRange, yRange, zRange, (float)relativeSceneDistance, 0);
+
+  //Mat sampled = samplePCByQuantization(pc, xRange, yRange, zRange, (float)relativeSceneDistance, 0);
+  float dx = xRange[1] - xRange[0];
+  float dy = yRange[1] - yRange[0];
+  float dz = zRange[1] - zRange[0];
+  float diameter = sqrt ( dx * dx + dy * dy + dz * dz );
+  float distanceSampleStep = model_diameter*relativeSceneDistance/diameter;
+  std::cout << "distanceSampleStep " << distanceSampleStep << std::endl;
+  Mat sampled = samplePCByQuantization(pc, xRange, yRange, zRange, (float)distanceSampleStep, 0);
 
   // allocate the accumulator : Moved this to the inside of the loop
   /*#if !defined (_OPENMP)
@@ -567,6 +510,8 @@ void PPF3DDetector::match(const Mat& pc, std::vector<Pose3DPtr>& results, const 
         double alpha_scene;
 
         Vec4d f = Vec4d::all(0);
+        if(norm(p1-p2)>this->model_diameter) continue;
+
         computePPFFeatures(p1, n1, p2, n2, f);
         KeyType hashValue = hashPPF(f, angle_step, distanceStep);
 
@@ -644,12 +589,12 @@ void PPF3DDetector::match(const Mat& pc, std::vector<Pose3DPtr>& results, const 
     Vec3d tInv, tmg;
     Matx33d Rmg;
     RInv = Rsg.t();
-    //std::cout <<"Step2" <<cv::determinant(RInv) << std::endl;
+
     tInv = -RInv * tsg;
 
     Matx44d TsgInv;
     rtToPose(RInv, tInv, TsgInv);
-    //std::cout << "i = " << i << " "  <<"Compute pose " << std::endl;
+
     // TODO : Compute pose
     const Vec3f pMax(sampled_pc.ptr<float>(refIndMax));
     const Vec3f nMax(sampled_pc.ptr<float>(refIndMax) + 3);
@@ -668,7 +613,6 @@ void PPF3DDetector::match(const Mat& pc, std::vector<Pose3DPtr>& results, const 
     Matx33d R;
     Vec3d t = Vec3d::all(0);
     getUnitXRotation(alpha, R);
-    //std::cout <<"Step3" <<cv::determinant(R) << std::endl;
     rtToPose(R, t, Talpha);
 
     Matx44d rawPose = TsgInv * (Talpha * Tmg);
@@ -692,120 +636,120 @@ void PPF3DDetector::match(const Mat& pc, std::vector<Pose3DPtr>& results, const 
 
   clusterPoses(poseList, numPosesAdded, results);
 }
-void PPF3DDetector::read(const FileNode &fn)
-{
-  fn["angle_step"] >> this->angle_step;
-  fn["angle_step_radians"] >> this->angle_step_radians;
-  fn["distance_step"] >> this->distance_step;
-  fn["sampling_step_relative"] >> this->sampling_step_relative;
-  fn["angle_step_relative"] >> this->angle_step_relative;
-  fn["distance_step_relative"] >> this->distance_step_relative;
-  fn["sampled_pc"] >> this->sampled_pc;
-  fn["ppf"] >> this->ppf;
-  fn["num_ref_points"] >> this->num_ref_points;
-  fn["position_threshold"] >> this->position_threshold;
-  fn["rotation_threshold"] >> this->rotation_threshold;
-  fn["use_weighted_avg"] >> this->use_weighted_avg;
-  fn["scene_sample_step"] >> this->scene_sample_step;
-  fn["trained"] >> this->trained;
+//void PPF3DDetector::read(const FileNode &fn)
+//{
+//  fn["angle_step"] >> this->angle_step;
+//  fn["angle_step_radians"] >> this->angle_step_radians;
+//  fn["distance_step"] >> this->distance_step;
+//  fn["sampling_step_relative"] >> this->sampling_step_relative;
+//  fn["angle_step_relative"] >> this->angle_step_relative;
+//  fn["distance_step_relative"] >> this->distance_step_relative;
+//  fn["sampled_pc"] >> this->sampled_pc;
+//  fn["ppf"] >> this->ppf;
+//  fn["num_ref_points"] >> this->num_ref_points;
+//  fn["position_threshold"] >> this->position_threshold;
+//  fn["rotation_threshold"] >> this->rotation_threshold;
+//  fn["use_weighted_avg"] >> this->use_weighted_avg;
+//  fn["scene_sample_step"] >> this->scene_sample_step;
+//  fn["trained"] >> this->trained;
 
-  // Hashtable deserialization
+//  // Hashtable deserialization
 
-  this->clearTrainingModels();
+//  this->clearTrainingModels();
 
-  int hash_table_size;
-  fn["hash_table_size"] >> hash_table_size;
+//  int hash_table_size;
+//  fn["hash_table_size"] >> hash_table_size;
 
-  hashtable_int *_hash_table = hashtableCreate(hash_table_size, NULL);
-  THash *_hash_nodes = (THash *)calloc(hash_table_size, sizeof(THash));
+//  hashtable_int *_hash_table = hashtableCreate(hash_table_size, NULL);
+//  THash *_hash_nodes = (THash *)calloc(hash_table_size, sizeof(THash));
 
-  int hash_table_nodes_size;
-  fn["hash_table_nodes_size"] >> hash_table_nodes_size;
+//  int hash_table_nodes_size;
+//  fn["hash_table_nodes_size"] >> hash_table_nodes_size;
 
-  FileNode fn_nodes = fn["hash_table_nodes"];
+//  FileNode fn_nodes = fn["hash_table_nodes"];
 
-  int *node_values_arr = (int *)calloc(hash_table_nodes_size, sizeof(int));
-  fn_nodes.readRaw("i", (uchar *)node_values_arr, hash_table_nodes_size);
+//  int *node_values_arr = (int *)calloc(hash_table_nodes_size, sizeof(int));
+//  fn_nodes.readRaw("i", (uchar *)node_values_arr, hash_table_nodes_size);
 
-  uint counter = 0;
+//  uint counter = 0;
 
-  for (int j = 0; j < hash_table_nodes_size; j += 3)
-  {
-    int id, i, ppf_ind;
-    THash *thash_item;
+//  for (int j = 0; j < hash_table_nodes_size; j += 3)
+//  {
+//    int id, i, ppf_ind;
+//    THash *thash_item;
 
-    id = node_values_arr[j];
-    i = node_values_arr[j + 1];
-    ppf_ind = node_values_arr[j + 2];
+//    id = node_values_arr[j];
+//    i = node_values_arr[j + 1];
+//    ppf_ind = node_values_arr[j + 2];
 
-    thash_item = &_hash_nodes[counter];
-    thash_item->id = id;
-    thash_item->i = i;
-    thash_item->ppfInd = ppf_ind;
+//    thash_item = &_hash_nodes[counter];
+//    thash_item->id = id;
+//    thash_item->i = i;
+//    thash_item->ppfInd = ppf_ind;
 
-    hashtableInsertHashed(_hash_table, id, (void *)thash_item);
+//    hashtableInsertHashed(_hash_table, id, (void *)thash_item);
 
-    counter++;
-  }
+//    counter++;
+//  }
 
-  free(node_values_arr);
+//  free(node_values_arr);
 
-  this->hash_nodes = _hash_nodes;
-  this->hash_table = _hash_table;
-}
+//  this->hash_nodes = _hash_nodes;
+//  this->hash_table = _hash_table;
+//}
 
-void PPF3DDetector::write(FileStorage &fs) const
-{
-  fs << "angle_step" << this->angle_step;
-  fs << "angle_step_radians" << this->angle_step_radians;
-  fs << "distance_step" << this->distance_step;
-  fs << "sampling_step_relative" << this->sampling_step_relative;
-  fs << "angle_step_relative" << this->angle_step_relative;
-  fs << "distance_step_relative" << this->distance_step_relative;
-  fs << "sampled_pc" << this->sampled_pc;
-  fs << "ppf" << this->ppf;
-  fs << "num_ref_points" << this->num_ref_points;
-  fs << "position_threshold" << this->position_threshold;
-  fs << "rotation_threshold" << this->rotation_threshold;
-  fs << "use_weighted_avg" << this->use_weighted_avg;
-  fs << "scene_sample_step" << this->scene_sample_step;
-  fs << "trained" << this->trained;
+//void PPF3DDetector::write(FileStorage &fs) const
+//{
+//  fs << "angle_step" << this->angle_step;
+//  fs << "angle_step_radians" << this->angle_step_radians;
+//  fs << "distance_step" << this->distance_step;
+//  fs << "sampling_step_relative" << this->sampling_step_relative;
+//  fs << "angle_step_relative" << this->angle_step_relative;
+//  fs << "distance_step_relative" << this->distance_step_relative;
+//  fs << "sampled_pc" << this->sampled_pc;
+//  fs << "ppf" << this->ppf;
+//  fs << "num_ref_points" << this->num_ref_points;
+//  fs << "position_threshold" << this->position_threshold;
+//  fs << "rotation_threshold" << this->rotation_threshold;
+//  fs << "use_weighted_avg" << this->use_weighted_avg;
+//  fs << "scene_sample_step" << this->scene_sample_step;
+//  fs << "trained" << this->trained;
 
-  // Hashtable serialization
+//  // Hashtable serialization
 
-  fs << "hash_table_size" << (int)this->hash_table->size;
+//  fs << "hash_table_size" << (int)this->hash_table->size;
 
-  size_t n;
-  struct hashnode_i *node;
-  THash *data;
+//  size_t n;
+//  struct hashnode_i *node;
+//  THash *data;
 
-  int nodes_counter = 0;
+//  int nodes_counter = 0;
 
-  fs << "hash_table_nodes"
-     << "[";
+//  fs << "hash_table_nodes"
+//     << "[";
 
-  for (n = 0; n < this->hash_table->size; ++n)
-  {
-    node = this->hash_table->nodes[n];
+//  for (n = 0; n < this->hash_table->size; ++n)
+//  {
+//    node = this->hash_table->nodes[n];
 
-    while (node)
-    {
-      data = (THash *)node->data;
+//    while (node)
+//    {
+//      data = (THash *)node->data;
 
-      fs << data->id;
-      fs << data->i;
-      fs << data->ppfInd;
+//      fs << data->id;
+//      fs << data->i;
+//      fs << data->ppfInd;
 
-      nodes_counter += 3;
+//      nodes_counter += 3;
 
-      node = node->next;
-    }
-  }
+//      node = node->next;
+//    }
+//  }
 
-  fs << "]";
+//  fs << "]";
 
-  fs << "hash_table_nodes_size" << nodes_counter;
-}
+//  fs << "hash_table_nodes_size" << nodes_counter;
+//}
 bool writeMatBinary(std::ofstream& ofs, const cv::Mat& out_mat)
 {
     if(!ofs.is_open()){

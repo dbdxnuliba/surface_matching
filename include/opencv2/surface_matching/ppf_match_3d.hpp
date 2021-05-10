@@ -148,9 +148,9 @@ public:
     *  @param [in] relativeSceneSampleStep The ratio of scene points to be used for the matching after sampling with relativeSceneDistance. For example, if this value is set to 1.0/5.0, every 5th point from the scene is used for pose estimation. This parameter allows an easy trade-off between speed and accuracy of the matching. Increasing the value leads to less points being used and in turn to a faster but less accurate pose computation. Decreasing the value has the inverse effect.
     *  @param [in] relativeSceneDistance Set the distance threshold relative to the diameter of the model. This parameter is equivalent to relativeSamplingStep in the training stage. This parameter acts like a prior sampling with the relativeSceneSampleStep parameter.
     */
-  CV_WRAP void match_(const Mat &model,const Mat& scene, CV_OUT std::vector<Pose3DPtr> &results, const double relativeSceneSampleStep=1.0/5.0, const double relativeSceneDistance=0.03);
-  CV_WRAP void read(const FileNode& fn);
-  CV_WRAP void write(FileStorage& fs) const;
+//  CV_WRAP void match_(const Mat &model,const Mat& scene, CV_OUT std::vector<Pose3DPtr> &results, const double relativeSceneSampleStep=1.0/5.0, const double relativeSceneDistance=0.03);
+//  CV_WRAP void read(const FileNode& fn);
+//  CV_WRAP void write(FileStorage& fs) const;
   CV_WRAP void readFile(const FileNode &fn);
   CV_WRAP void writeFile(FileStorage &fs) const;
   CV_WRAP bool readFile(const std::string &pth);
